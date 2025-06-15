@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const { z }  = require("zod");
 const jwt = require("jsonwebtoken");
 const mongoose = require('mongoose');
 const bcrypt = require("bcrypt");
@@ -7,9 +8,14 @@ const bcrypt = require("bcrypt");
 const SALT_ROUND = parseInt(process.env.SALT_ROUND);
 mongoose.connect(process.env.MONGO_URI);
 
+
 const { UserModel, TodoModel } = require("./db");
 
 const { auth, JWT_SECRET } = require("./auth");
+
+const { signupSchema, signinSchema } = require("./zod");
+
+
 const app = express();
 
 app.use(express.json());
@@ -17,9 +23,11 @@ app.use(express.json());
 
 app.post("/signup", async function(req, res) {
     try {
-        const email = req.body.email;
-        const password = req.body.password;
-        const name = req.body.name;
+        const valid = signupSchema.parse(req.body);
+
+        const email = valid.email;
+        const password = valid.password;
+        const name = valid.name;
 
         const hashedPassword = await bcrypt.hash(password, SALT_ROUND);
 
@@ -34,22 +42,30 @@ app.post("/signup", async function(req, res) {
         });
 
     } catch(e) {
-        res.json({
-            message: "Error while Signing Up"
+        console.log(e);
+        if(e instanceof z.ZodError) {
+            return res.status(400).json({
+                errors: e.errors.map(err => err.message)
+            })
+        }
+        return res.status(500).json({
+            message: "Internal Server Error"
         });
     }
 });
 
 app.post("/signin", async function(req, res) {
     try {
-        const email = req.body.email;
-        const password = req.body.password;
+        const valid = signinSchema.parse(req.body);
+
+        const email = valid.email;
+        const password = valid.password;
 
         const response = await UserModel.findOne({
             email: email
         });
 
-        const passwordMatch = bcrypt.compare(password, response.password); 
+        const passwordMatch = await bcrypt.compare(password, response.password); 
 
         if(response && passwordMatch){
             const token = jwt.sign({
@@ -65,7 +81,12 @@ app.post("/signin", async function(req, res) {
             });
         }
     } catch(e) {
-        res.json({
+        if(e instanceof z.ZodError){
+            return res.status(400).json({
+                errors: e.errors.map(err => err.message)
+            });
+        }
+        res.status(500).json({
             message: "Error while signing in"
         });
     }
