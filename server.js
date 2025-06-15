@@ -16,44 +16,57 @@ app.use(express.json());
 
 
 app.post("/signup", async function(req, res) {
-    const email = req.body.email;
-    const password = req.body.password;
-    const name = req.body.name;
+    try {
+        const email = req.body.email;
+        const password = req.body.password;
+        const name = req.body.name;
 
-    const hashedPassword = await bcrypt.hash(password, SALT_ROUND);
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUND);
 
-    await UserModel.create({
-        email: email,
-        password: hashedPassword,
-        name: name
-    });
+        await UserModel.create({
+            email: email,
+            password: hashedPassword,
+            name: name
+        });
 
-    res.json({
-        message: "SignUp successful"
-    });
+        res.json({
+            message: "SignUp successful"
+        });
+
+    } catch(e) {
+        res.json({
+            message: "Error while Signing Up"
+        });
+    }
 });
 
 app.post("/signin", async function(req, res) {
-    const email = req.body.email;
-    const password = req.body.password;
+    try {
+        const email = req.body.email;
+        const password = req.body.password;
 
-    const response = await UserModel.findOne({
-        email: email
-    });
-
-    const passwordMatch = bcrypt.compare(password, response.password); 
-
-    if(response && passwordMatch){
-        const token = jwt.sign({
-            id: response._id.toString()
-        }, JWT_SECRET);
-        res.json({
-            token: token
+        const response = await UserModel.findOne({
+            email: email
         });
 
-    } else {
-        res.status(403).json({
-            message: "Incorrect Credentials"
+        const passwordMatch = bcrypt.compare(password, response.password); 
+
+        if(response && passwordMatch){
+            const token = jwt.sign({
+                id: response._id.toString()
+            }, JWT_SECRET);
+            res.json({
+                token: token
+            });
+
+        } else {
+            res.status(403).json({
+                message: "Incorrect Credentials"
+            });
+        }
+    } catch(e) {
+        res.json({
+            message: "Error while signing in"
         });
     }
 });
@@ -77,4 +90,4 @@ app.get("/todos", auth, async function(req, res) {
     res.json(todos);
 });
 
-app.listen(3000);
+app.listen(process.env.PORT);
